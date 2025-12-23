@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Michael's Fresh Catch</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // ================= CONFIGURATION =================
+        // Enter your GitHub Username and Repo Name here
+        const GITHUB_USERNAME = "YOUR_GITHUB_USERNAME";
+        const REPO_NAME = "YOUR_REPO_NAME";
+        const BRANCH = "main";
+        // =================================================
+    </script>
+</head>
+<body class="bg-blue-50 text-slate-800 font-sans pb-24">
+
+    <!-- Header -->
+    <header id="main-header" class="bg-white shadow sticky top-0 z-10 transition-colors duration-300">
+        <div class="max-w-md mx-auto px-4 py-4 flex justify-between items-center">
+            <div>
+                <h1 class="text-xl font-black text-blue-900 tracking-tight">MICHAEL'S <span class="text-blue-500">CATCH</span></h1>
+                <p id="status-message" class="text-xs text-slate-500">Checking store status...</p>
+            </div>
+            <div id="store-status"></div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-md mx-auto px-4 py-6">
+        <div id="product-grid" class="grid grid-cols-1 gap-4">
+            <div class="text-center py-10 text-slate-400 animate-pulse">Loading fresh catch...</div>
+        </div>
+    </main>
+
+    <!-- Cart Overlay -->
+    <div id="cart-overlay" class="fixed bottom-0 left-0 right-0 bg-white shadow-[0_-4px_20px_rgba(0,0,0,0.1)] transform translate-y-full transition-transform duration-300 z-20 max-w-md mx-auto rounded-t-2xl">
+        <div class="p-5">
+            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                <h3 class="font-bold text-lg text-blue-900">Your Basket (<span id="cart-count">0</span>)</h3>
+                <span id="cart-total" class="font-bold text-green-600 text-xl">0.00</span>
+            </div>
+            <div id="cart-items" class="max-h-40 overflow-y-auto mb-4 text-sm space-y-2"></div>
+            <button onclick="checkout()" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 shadow-lg flex items-center justify-center gap-2">
+                <span></span> Send Order via WhatsApp
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let cart = [];
+        let products = [];
+        let settings = {};
+
+        // Helper: Get Raw URL
+        const getRawUrl = (path) => `https://raw.githubusercontent.com/${GITHUB_USERNAME}/${REPO_NAME}/${BRANCH}/${path}`;
+
+        // Initialize
+        async function init() {
+            try {
+                // 1. Fetch Settings
+                const settingsRes = await fetch(getRawUrl('data/settings.json'));
+                if (settingsRes.ok) {
+                    settings = await settingsRes.json();
+                    renderHeader();
+                }
+
+                // 2. Fetch Products
+                const prodRes = await fetch(getRawUrl('data/products.json'));
+                if (prodRes.ok) {
+                    products = await prodRes.json();
+                    renderProducts();
+                } else {
+                    document.getElementById('product-grid').innerHTML = '<div class="text-center text-red-500">Store is currently offline (No Data).</div>';
+                }
+            } catch (error) {
+                console.error("Error loading store:", error);
+            }
+        }
+
+        function renderHeader() {
+            const statusBadge = document.getElementById('store-status');
+            const statusMsg = document.getElementById('status-message');
+            const mainHeader = document.getElementById('main-header');
+            
+            statusMsg.textContent = settings.message || "Welcome!";
+
+            let badgeHtml = '';
+            if (settings.status === 'Delivery') {
+                badgeHtml = `<span class="bg-yellow-100 text-yellow-800 text-xs font-bold px-2 py-1 rounded border border-yellow-400">OUT FOR DELIVERY </span>`;
+                mainHeader.classList.add("border-b-4", "border-yellow-400");
+            } else if (settings.status === 'Closed') {
+                badgeHtml = `<span class="bg-red-100 text-red-800 text-xs font-bold px-2 py-1 rounded border border-red-400">CLOSED </span>`;
+                mainHeader.classList.add("border-b-4", "border-red-400");
+            } else {
+                badgeHtml = `<span class="bg-green-100 text-green-800 text-xs font-bold px-2 py-1 rounded border border-green-400">OPEN </span>`;
+                mainHeader.classList.add("border-b-4", "border-green-400");
+            }
+            statusBadge.innerHTML = badgeHtml;
+        }
+
+        function renderProducts() {
+            const container = document.getElementById('product-grid');
+            container.innerHTML = '';
+
+            products.forEach(p => {
+                const isSoldOut = p.stock <= 0;
+                // Use the image URL from JSON, or a placeholder if missing
+                const imgUrl = p.image || 'https://via.placeholder.com/300x200?text=No+Image';
+
+                container.innerHTML += `
+                    <div class="bg-white rounded-xl shadow-sm border border-blue-100 overflow-hidden flex flex-col ${isSoldOut ? 'opacity-60 grayscale' : ''}">
+                        <div class="h-40 bg-slate-200 w-full relative">
+                            <img src="${imgUrl}" class="w-full h-full object-cover" alt="${p.name}">
+                            ${isSoldOut ? '<div class="absolute inset-0 bg-black/50 flex items-center justify-center text-white font-bold tracking-wider">SOLD OUT</div>' : ''}
+                        </div>
+                        <div class="p-4 flex flex-col flex-1">
+                            <div class="flex justify-between items-start mb-1">
+                                <h3 class="font-bold text-lg text-slate-800">${p.name}</h3>
+                                <span class="text-blue-600 font-bold bg-blue-50 px-2 py-1 rounded-lg">${p.price}/pc</span>
+                            </div>
+                            <p class="text-sm text-slate-500 mb-4 line-clamp-2">${p.description || ''}</p>
+                            <div class="mt-auto flex justify-between items-center">
+                                <span class="text-xs font-medium text-slate-400">${p.stock} pcs Left</span>
+                                <button onclick="addToCart('${p.id}')" ${isSoldOut ? 'disabled' : ''} 
+                                    class="px-4 py-2 rounded-lg text-sm font-bold transition-all ${isSoldOut ? 'bg-slate-200 text-slate-400' : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95'}">
+                                    ${isSoldOut ? 'Out of Stock' : 'Add +'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function renderCart() {
+            const overlay = document.getElementById('cart-overlay');
+            const list = document.getElementById('cart-items');
+            const count = document.getElementById('cart-count');
+            const totalEl = document.getElementById('cart-total');
+
+            count.textContent = cart.reduce((acc, item) => acc + item.qty, 0);
+            
+            if (cart.length > 0) {
+                overlay.classList.remove('translate-y-full');
+            } else {
+                overlay.classList.add('translate-y-full');
+            }
+
+            list.innerHTML = '';
+            let total = 0;
+
+            cart.forEach((item, idx) => {
+                total += item.price * item.qty;
+                list.innerHTML += `
+                    <div class="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-100">
+                        <div>
+                            <div class="font-bold text-slate-700">${item.name}</div>
+                            <div class="text-xs text-slate-500">${item.price} x ${item.qty} pcs</div>
+                        </div>
+                        <button onclick="removeFromCart(${idx})" class="text-red-400 hover:text-red-600 font-bold text-lg px-2">&times;</button>
+                    </div>
+                `;
+            });
+            
+            totalEl.textContent = `${total.toFixed(2)}`;
+        }
+
+        window.addToCart = (id) => {
+            const product = products.find(p => p.id === id);
+            const existing = cart.find(c => c.id === id);
+            
+            if (existing) {
+                if (existing.qty + 1 <= product.stock) {
+                    existing.qty++;
+                } else {
+                    alert("No more stocks available!");
+                }
+            } else {
+                cart.push({ ...product, qty: 1 });
+            }
+            renderCart();
+        }
+
+        window.removeFromCart = (idx) => {
+            cart.splice(idx, 1);
+            renderCart();
+        }
+
+        window.checkout = () => {
+            if (cart.length === 0) return;
+            
+            // Format message for WhatsApp
+            let msg = `*New Order from Website!* \n\n`;
+            let total = 0;
+            cart.forEach(item => {
+                msg += `• ${item.name}: ${item.qty} pcs (${item.price * item.qty})\n`;
+                total += item.price * item.qty;
+            });
+            msg += `\n*Total: ${total}*\n\nPlease confirm availability!`;
+
+            // Replace with your phone number (format: 639xxxxxxxxx)
+            const phoneNumber = "639169652331"; 
+            
+            // Open WhatsApp
+            window.open(`https://wa.me/${phoneNumber}?text=${encodeURIComponent(msg)}`, '_blank');
+        }
+
+        init();
+    </script>
+</body>
+</html>
+
+
