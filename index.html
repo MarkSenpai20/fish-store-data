@@ -8,8 +8,8 @@
     <script>
         // ================= CONFIGURATION =================
         // Enter your GitHub Username and Repo Name here
-        const GITHUB_USERNAME = "YOUR_GITHUB_USERNAME";
-        const REPO_NAME = "YOUR_REPO_NAME";
+        const GITHUB_USERNAME = "MarkSenpai20";
+        const REPO_NAME = "fish-store-data";
         const BRANCH = "main";
         // =================================================
     </script>
@@ -196,7 +196,7 @@
             let msg = `*New Order from Website!* \n\n`;
             let total = 0;
             cart.forEach(item => {
-                msg += `• ${item.name}: ${item.qty} pcs (${item.price * item.qty})\n`;
+                msg += `Â• ${item.name}: ${item.qty} pcs (${item.price * item.qty})\n`;
                 total += item.price * item.qty;
             });
             msg += `\n*Total: ${total}*\n\nPlease confirm availability!`;
