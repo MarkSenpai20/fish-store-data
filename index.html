@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Michael's Fresh Catch</title>
+    <title>Cruz's Fresh Catch</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
     <script>
         // ================= CONFIGURATION =================
         // Enter your GitHub Username and Repo Name here
@@ -17,11 +18,11 @@
 <body class="bg-blue-50 text-slate-800 font-sans pb-24">
 
     <!-- Header -->
-    <header id="main-header" class="bg-white shadow sticky top-0 z-10 transition-colors duration-300">
+    <header id="main-header" class="bg-white shadow sticky top-0 z-10 transition-all duration-300 border-b-4 border-transparent">
         <div class="max-w-md mx-auto px-4 py-4 flex justify-between items-center">
             <div>
-                <h1 class="text-xl font-black text-blue-900 tracking-tight">MICHAEL'S <span class="text-blue-500">CATCH</span></h1>
-                <p id="status-message" class="text-xs text-slate-500">Checking store status...</p>
+                <h1 class="text-xl font-black text-blue-900 tracking-tight">CRUZ'S <span class="text-blue-500">CATCH</span></h1>
+                <p id="status-message" class="text-xs text-slate-500">Connecting...</p>
             </div>
             <div id="store-status"></div>
         </div>
@@ -30,7 +31,11 @@
     <!-- Main Content -->
     <main class="max-w-md mx-auto px-4 py-6">
         <div id="product-grid" class="grid grid-cols-1 gap-4">
-            <div class="text-center py-10 text-slate-400 animate-pulse">Loading fresh catch...</div>
+            <!-- Loading State -->
+            <div class="text-center py-10 text-slate-400 flex flex-col items-center animate-pulse">
+                <i class="fa-solid fa-fish text-4xl mb-2"></i>
+                <span>Loading Fresh Catch...</span>
+            </div>
         </div>
     </main>
 
@@ -39,11 +44,11 @@
         <div class="p-5">
             <div class="flex justify-between items-center mb-4 border-b pb-2">
                 <h3 class="font-bold text-lg text-blue-900">Your Basket (<span id="cart-count">0</span>)</h3>
-                <span id="cart-total" class="font-bold text-green-600 text-xl">0.00</span>
+                <span id="cart-total" class="font-bold text-green-600 text-xl">₱0.00</span>
             </div>
             <div id="cart-items" class="max-h-40 overflow-y-auto mb-4 text-sm space-y-2"></div>
             <button onclick="checkout()" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 shadow-lg flex items-center justify-center gap-2">
-                <span></span> Send Order via WhatsApp
+                <i class="fa-brands fa-whatsapp text-xl"></i> Send Order
             </button>
         </div>
     </div>
@@ -53,12 +58,13 @@
         let cart = [];
         let products = [];
         let settings = {};
+        let isFirstLoad = true;
 
-        // Helper: Get Raw URL
-        const getRawUrl = (path) => `https://raw.githubusercontent.com/${GITHUB_USERNAME}/${REPO_NAME}/${BRANCH}/${path}`;
+        // Helper: Get Raw URL with Cache Busting
+        const getRawUrl = (path) => `https://raw.githubusercontent.com/${GITHUB_USERNAME}/${REPO_NAME}/${BRANCH}/${path}?t=${Date.now()}`;
 
-        // Initialize
-        async function init() {
+        // Initialize & Polling
+        async function fetchStoreData() {
             try {
                 // 1. Fetch Settings
                 const settingsRes = await fetch(getRawUrl('data/settings.json'));
@@ -70,13 +76,19 @@
                 // 2. Fetch Products
                 const prodRes = await fetch(getRawUrl('data/products.json'));
                 if (prodRes.ok) {
-                    products = await prodRes.json();
-                    renderProducts();
+                    const newProducts = await prodRes.json();
+                    // Only re-render if data actually changed to prevent flickering
+                    if (JSON.stringify(newProducts) !== JSON.stringify(products)) {
+                        products = newProducts;
+                        renderProducts();
+                    }
                 } else {
-                    document.getElementById('product-grid').innerHTML = '<div class="text-center text-red-500">Store is currently offline (No Data).</div>';
+                    if(isFirstLoad) document.getElementById('product-grid').innerHTML = '<div class="text-center text-red-500 mt-10">Store Offline (Data Missing)</div>';
                 }
+                isFirstLoad = false;
+
             } catch (error) {
-                console.error("Error loading store:", error);
+                console.error("Sync error:", error);
             }
         }
 
@@ -88,15 +100,18 @@
             statusMsg.textContent = settings.message || "Welcome!";
 
             let badgeHtml = '';
+            // Reset borders
+            mainHeader.classList.remove("border-yellow-400", "border-red-400", "border-green-400");
+
             if (settings.status === 'Delivery') {
-                badgeHtml = `<span class="bg-yellow-100 text-yellow-800 text-xs font-bold px-2 py-1 rounded border border-yellow-400">OUT FOR DELIVERY </span>`;
-                mainHeader.classList.add("border-b-4", "border-yellow-400");
+                badgeHtml = `<span class="bg-yellow-100 text-yellow-800 text-xs font-bold px-2 py-1 rounded border border-yellow-400 flex items-center gap-1"><i class="fa-solid fa-truck"></i> DELIVERY</span>`;
+                mainHeader.classList.add("border-yellow-400");
             } else if (settings.status === 'Closed') {
-                badgeHtml = `<span class="bg-red-100 text-red-800 text-xs font-bold px-2 py-1 rounded border border-red-400">CLOSED </span>`;
-                mainHeader.classList.add("border-b-4", "border-red-400");
+                badgeHtml = `<span class="bg-red-100 text-red-800 text-xs font-bold px-2 py-1 rounded border border-red-400 flex items-center gap-1"><i class="fa-solid fa-lock"></i> CLOSED</span>`;
+                mainHeader.classList.add("border-red-400");
             } else {
-                badgeHtml = `<span class="bg-green-100 text-green-800 text-xs font-bold px-2 py-1 rounded border border-green-400">OPEN </span>`;
-                mainHeader.classList.add("border-b-4", "border-green-400");
+                badgeHtml = `<span class="bg-green-100 text-green-800 text-xs font-bold px-2 py-1 rounded border border-green-400 flex items-center gap-1"><i class="fa-solid fa-door-open"></i> OPEN</span>`;
+                mainHeader.classList.add("border-green-400");
             }
             statusBadge.innerHTML = badgeHtml;
         }
@@ -105,28 +120,38 @@
             const container = document.getElementById('product-grid');
             container.innerHTML = '';
 
+            if (products.length === 0) {
+                container.innerHTML = '<div class="text-center text-slate-400 py-10">No fish available today!</div>';
+                return;
+            }
+
             products.forEach(p => {
                 const isSoldOut = p.stock <= 0;
-                // Use the image URL from JSON, or a placeholder if missing
-                const imgUrl = p.image || 'https://via.placeholder.com/300x200?text=No+Image';
+                // Fallback image logic
+                const imgUrl = p.image && p.image.length > 10 ? p.image : 'https://placehold.co/400x300/e2e8f0/64748b?text=No+Image';
 
                 container.innerHTML += `
                     <div class="bg-white rounded-xl shadow-sm border border-blue-100 overflow-hidden flex flex-col ${isSoldOut ? 'opacity-60 grayscale' : ''}">
                         <div class="h-40 bg-slate-200 w-full relative">
-                            <img src="${imgUrl}" class="w-full h-full object-cover" alt="${p.name}">
-                            ${isSoldOut ? '<div class="absolute inset-0 bg-black/50 flex items-center justify-center text-white font-bold tracking-wider">SOLD OUT</div>' : ''}
+                            <img src="${imgUrl}" 
+                                 onerror="this.src='https://placehold.co/400x300/e2e8f0/64748b?text=Image+Error'" 
+                                 class="w-full h-full object-cover transition-opacity duration-300" 
+                                 alt="${p.name}">
+                            ${isSoldOut ? '<div class="absolute inset-0 bg-black/50 flex items-center justify-center text-white font-bold tracking-wider backdrop-blur-sm">SOLD OUT</div>' : ''}
                         </div>
                         <div class="p-4 flex flex-col flex-1">
                             <div class="flex justify-between items-start mb-1">
                                 <h3 class="font-bold text-lg text-slate-800">${p.name}</h3>
-                                <span class="text-blue-600 font-bold bg-blue-50 px-2 py-1 rounded-lg">${p.price}/pc</span>
+                                <span class="text-blue-600 font-bold bg-blue-50 px-2 py-1 rounded-lg">₱${p.price}</span>
                             </div>
-                            <p class="text-sm text-slate-500 mb-4 line-clamp-2">${p.description || ''}</p>
+                            <p class="text-sm text-slate-500 mb-4 line-clamp-2">${p.description || 'Fresh catch.'}</p>
                             <div class="mt-auto flex justify-between items-center">
-                                <span class="text-xs font-medium text-slate-400">${p.stock} pcs Left</span>
+                                <span class="text-xs font-medium ${isSoldOut ? 'text-red-400' : 'text-green-600'}">
+                                    <i class="fa-solid fa-box-open mr-1"></i>${p.stock} pcs Left
+                                </span>
                                 <button onclick="addToCart('${p.id}')" ${isSoldOut ? 'disabled' : ''} 
-                                    class="px-4 py-2 rounded-lg text-sm font-bold transition-all ${isSoldOut ? 'bg-slate-200 text-slate-400' : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95'}">
-                                    ${isSoldOut ? 'Out of Stock' : 'Add +'}
+                                    class="px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm ${isSoldOut ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95'}">
+                                    ${isSoldOut ? 'Sold Out' : 'Add <i class="fa-solid fa-plus ml-1"></i>'}
                                 </button>
                             </div>
                         </div>
@@ -158,14 +183,16 @@
                     <div class="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-100">
                         <div>
                             <div class="font-bold text-slate-700">${item.name}</div>
-                            <div class="text-xs text-slate-500">${item.price} x ${item.qty} pcs</div>
+                            <div class="text-xs text-slate-500">₱${item.price} x ${item.qty} pcs</div>
                         </div>
-                        <button onclick="removeFromCart(${idx})" class="text-red-400 hover:text-red-600 font-bold text-lg px-2">&times;</button>
+                        <button onclick="removeFromCart(${idx})" class="text-red-400 hover:text-red-600 w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-50 transition-colors">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
                     </div>
                 `;
             });
             
-            totalEl.textContent = `${total.toFixed(2)}`;
+            totalEl.textContent = `₱${total.toFixed(2)}`;
         }
 
         window.addToCart = (id) => {
@@ -192,23 +219,23 @@
         window.checkout = () => {
             if (cart.length === 0) return;
             
-            // Format message for WhatsApp
-            let msg = `*New Order from Website!* \n\n`;
+            let msg = `*New Order from Website!* 🐟\n\n`;
             let total = 0;
             cart.forEach(item => {
-                msg += ` ${item.name}: ${item.qty} pcs (${item.price * item.qty})\n`;
+                msg += `• ${item.name}: ${item.qty} pcs (₱${item.price * item.qty})\n`;
                 total += item.price * item.qty;
             });
-            msg += `\n*Total: ${total}*\n\nPlease confirm availability!`;
+            msg += `\n*Total: ₱${total}*\n\nPlease confirm availability!`;
 
-            // Replace with your phone number (format: 639xxxxxxxxx)
-            const phoneNumber = "639169652331"; 
-            
-            // Open WhatsApp
+            const phoneNumber = "639000000000"; 
             window.open(`https://wa.me/${phoneNumber}?text=${encodeURIComponent(msg)}`, '_blank');
         }
 
-        init();
+        // Start App
+        fetchStoreData();
+        // REALTIME: Check for updates every 5 seconds
+        setInterval(fetchStoreData, 5000);
+
     </script>
 </body>
 </html>
